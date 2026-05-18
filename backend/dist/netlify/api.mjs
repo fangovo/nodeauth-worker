@@ -18150,7 +18150,7 @@ var init_size = __esm({
 var version3;
 var init_version2 = __esm({
   "node_modules/viem/_esm/errors/version.js"() {
-    version3 = "2.47.6";
+    version3 = "2.49.3";
   }
 });
 
@@ -20729,11 +20729,34 @@ var init_transaction = __esm({
 });
 
 // node_modules/viem/_esm/errors/utils.js
+function getAbortError(signal) {
+  if (signal?.reason)
+    return signal.reason;
+  if (typeof DOMException === "function")
+    return new DOMException("This operation was aborted", "AbortError");
+  const error = new Error("This operation was aborted");
+  error.name = "AbortError";
+  return error;
+}
+function isAbortError(error) {
+  return typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
+}
 var getContractAddress, getUrl;
 var init_utils3 = __esm({
   "node_modules/viem/_esm/errors/utils.js"() {
     getContractAddress = (address) => address;
-    getUrl = (url) => url;
+    getUrl = (url) => {
+      try {
+        const parsed = new URL(url);
+        if (!parsed.username && !parsed.password)
+          return url;
+        parsed.username = "";
+        parsed.password = "";
+        return parsed.toString();
+      } catch {
+        return url;
+      }
+    };
   }
 });
 
@@ -26109,7 +26132,7 @@ __export(ccip_exports, {
   offchainLookupAbiItem: () => offchainLookupAbiItem,
   offchainLookupSignature: () => offchainLookupSignature
 });
-async function offchainLookup(client, { blockNumber, blockTag, data, to }) {
+async function offchainLookup(client, { blockNumber, blockTag, data, requestOptions, to }) {
   const { args } = decodeErrorResult({
     data,
     abi: [offchainLookupAbiItem]
@@ -26122,8 +26145,8 @@ async function offchainLookup(client, { blockNumber, blockTag, data, to }) {
       throw new OffchainLookupSenderMismatchError({ sender, to });
     const result = urls.includes(localBatchGatewayUrl) ? await localBatchGatewayRequest({
       data: callData,
-      ccipRequest: ccipRequest_
-    }) : await ccipRequest_({ data: callData, sender, urls });
+      ccipRequest: (parameters) => ccipRequest_({ ...parameters, requestOptions })
+    }) : await ccipRequest_({ data: callData, requestOptions, sender, urls });
     const { data: data_ } = await call(client, {
       blockNumber,
       blockTag,
@@ -26131,10 +26154,15 @@ async function offchainLookup(client, { blockNumber, blockTag, data, to }) {
         callbackSelector,
         encodeAbiParameters([{ type: "bytes" }, { type: "bytes" }], [result, extraData])
       ]),
+      requestOptions,
       to
     });
     return data_;
   } catch (err) {
+    if (requestOptions?.signal?.aborted)
+      throw getAbortError(requestOptions.signal);
+    if (isAbortError(err))
+      throw err;
     throw new OffchainLookupError({
       callbackSelector,
       cause: err,
@@ -26145,9 +26173,11 @@ async function offchainLookup(client, { blockNumber, blockTag, data, to }) {
     });
   }
 }
-async function ccipRequest({ data, sender, urls }) {
+async function ccipRequest({ data, requestOptions, sender, urls }) {
   let error = new Error("An unknown error occurred.");
   for (let i2 = 0; i2 < urls.length; i2++) {
+    if (requestOptions?.signal?.aborted)
+      throw getAbortError(requestOptions.signal);
     const url = urls[i2];
     const method = url.includes("{data}") ? "GET" : "POST";
     const body = method === "POST" ? { data, sender } : void 0;
@@ -26156,7 +26186,8 @@ async function ccipRequest({ data, sender, urls }) {
       const response = await fetch(url.replace("{sender}", sender.toLowerCase()).replace("{data}", data), {
         body: JSON.stringify(body),
         headers,
-        method
+        method,
+        ...requestOptions?.signal ? { signal: requestOptions.signal } : {}
       });
       let result;
       if (response.headers.get("Content-Type")?.startsWith("application/json")) {
@@ -26183,6 +26214,10 @@ async function ccipRequest({ data, sender, urls }) {
       }
       return result;
     } catch (err) {
+      if (requestOptions?.signal?.aborted)
+        throw getAbortError(requestOptions.signal);
+      if (isAbortError(err))
+        throw err;
       error = new HttpRequestError({
         body,
         details: err.message,
@@ -26198,6 +26233,7 @@ var init_ccip2 = __esm({
     init_call();
     init_ccip();
     init_request();
+    init_utils3();
     init_decodeErrorResult();
     init_encodeAbiParameters();
     init_isAddressEqual();
@@ -26237,7 +26273,7 @@ var init_ccip2 = __esm({
 
 // node_modules/viem/_esm/actions/public/call.js
 async function call(client, args) {
-  const { account: account_ = client.account, authorizationList, batch = Boolean(client.batch?.multicall), blockNumber, blockTag = client.experimental_blockTag ?? "latest", accessList, blobs, blockOverrides, code, data: data_, factory, factoryData, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce, to, value, stateOverride, ...rest } = args;
+  const { account: account_ = client.account, authorizationList, batch = Boolean(client.batch?.multicall), blockNumber, blockTag = client.experimental_blockTag ?? "latest", accessList, blobs, blockOverrides, code, data: data_, factory, factoryData, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce, requestOptions, to, value, stateOverride, ...rest } = args;
   const account = account_ ? parseAccount(account_) : void 0;
   if (code && (factory || factoryData))
     throw new BaseError2("Cannot provide both `code` & `factory`/`factoryData` as parameters.");
@@ -26291,7 +26327,8 @@ async function call(client, args) {
         return await scheduleMulticall(client, {
           ...request2,
           blockNumber,
-          blockTag
+          blockTag,
+          requestOptions
         });
       } catch (err) {
         if (!(err instanceof ClientChainNotConfiguredError) && !(err instanceof ChainDoesNotSupportContract))
@@ -26314,15 +26351,21 @@ async function call(client, args) {
     const response = await client.request({
       method: "eth_call",
       params
-    });
+    }, requestOptions);
     if (response === "0x")
       return { data: void 0 };
     return { data: response };
   } catch (err) {
+    if (requestOptions?.signal?.aborted)
+      throw getAbortError(requestOptions.signal);
+    if (isAbortError(err))
+      throw err;
     const data2 = getRevertErrorData(err);
     const { offchainLookup: offchainLookup2, offchainLookupSignature: offchainLookupSignature2 } = await Promise.resolve().then(() => (init_ccip2(), ccip_exports));
     if (client.ccipRead !== false && data2?.slice(0, 10) === offchainLookupSignature2 && to)
-      return { data: await offchainLookup2(client, { data: data2, to }) };
+      return {
+        data: await offchainLookup2(client, { data: data2, requestOptions, to })
+      };
     if (deploylessCall && data2?.slice(0, 10) === "0x101bb98d")
       throw new CounterfactualDeploymentFailedError({ factory });
     throw getCallError(err, {
@@ -26344,9 +26387,19 @@ function shouldPerformMulticall({ request: request2 }) {
     return false;
   return true;
 }
+function getRequestOptionsId(requestOptions) {
+  if (!requestOptions)
+    return "default";
+  const id = requestOptionsIds.get(requestOptions);
+  if (id !== void 0)
+    return id;
+  const nextId = requestOptionsId++;
+  requestOptionsIds.set(requestOptions, nextId);
+  return nextId;
+}
 async function scheduleMulticall(client, args) {
   const { batchSize = 1024, deployless = false, wait: wait2 = 0 } = typeof client.batch?.multicall === "object" ? client.batch.multicall : {};
-  const { blockNumber, blockTag = client.experimental_blockTag ?? "latest", data, to } = args;
+  const { blockNumber, blockTag = client.experimental_blockTag ?? "latest", data, requestOptions, to } = args;
   const multicallAddress = (() => {
     if (deployless)
       return null;
@@ -26364,7 +26417,7 @@ async function scheduleMulticall(client, args) {
   const blockNumberHex = typeof blockNumber === "bigint" ? numberToHex(blockNumber) : void 0;
   const block = blockNumberHex || blockTag;
   const { schedule } = createBatchScheduler({
-    id: `${client.uid}.${block}`,
+    id: `${client.uid}.${block}.${getRequestOptionsId(requestOptions)}`,
     wait: wait2,
     shouldSplitBatch(args2) {
       const size5 = args2.reduce((size6, { data: data2 }) => size6 + (data2.length - 2), 0);
@@ -26394,7 +26447,7 @@ async function scheduleMulticall(client, args) {
           },
           block
         ]
-      });
+      }, requestOptions);
       return decodeFunctionResult({
         abi: multicall3Abi,
         args: [calls],
@@ -26432,6 +26485,7 @@ function getRevertErrorData(err) {
   const error = err.walk();
   return typeof error?.data === "object" ? error.data?.data : error.data;
 }
+var requestOptionsId, requestOptionsIds;
 var init_call = __esm({
   "node_modules/viem/_esm/actions/public/call.js"() {
     init_exports();
@@ -26443,6 +26497,7 @@ var init_call = __esm({
     init_base();
     init_chain();
     init_contract();
+    init_utils3();
     init_decodeFunctionResult();
     init_encodeDeployData();
     init_encodeFunctionData();
@@ -26454,6 +26509,8 @@ var init_call = __esm({
     init_createBatchScheduler();
     init_stateOverride2();
     init_assertRequest();
+    requestOptionsId = 0;
+    requestOptionsIds = /* @__PURE__ */ new WeakMap();
   }
 });
 
@@ -30268,7 +30325,7 @@ var require_ponyfill_es2018 = __commonJS({
         return isDOMExceptionConstructor(ctor) ? ctor : void 0;
       }
       function createPolyfill() {
-        const ctor = function DOMException3(message, name) {
+        const ctor = function DOMException4(message, name) {
           this.message = message || "";
           this.name = name || "Error";
           if (Error.captureStackTrace) {
@@ -30280,7 +30337,7 @@ var require_ponyfill_es2018 = __commonJS({
         Object.defineProperty(ctor.prototype, "constructor", { value: ctor, writable: true, configurable: true });
         return ctor;
       }
-      const DOMException2 = getFromGlobal() || createPolyfill();
+      const DOMException3 = getFromGlobal() || createPolyfill();
       function ReadableStreamPipeTo(source, dest, preventClose, preventAbort, preventCancel, signal) {
         const reader = AcquireReadableStreamDefaultReader(source);
         const writer = AcquireWritableStreamDefaultWriter(dest);
@@ -30291,7 +30348,7 @@ var require_ponyfill_es2018 = __commonJS({
           let abortAlgorithm;
           if (signal !== void 0) {
             abortAlgorithm = () => {
-              const error = signal.reason !== void 0 ? signal.reason : new DOMException2("Aborted", "AbortError");
+              const error = signal.reason !== void 0 ? signal.reason : new DOMException3("Aborted", "AbortError");
               const actions = [];
               if (!preventAbort) {
                 actions.push(() => {
@@ -66563,6 +66620,9 @@ function formatTransaction(transaction, _) {
     ...transaction,
     blockHash: transaction.blockHash ? transaction.blockHash : null,
     blockNumber: transaction.blockNumber ? BigInt(transaction.blockNumber) : null,
+    ...transaction.blockTimestamp != null && {
+      blockTimestamp: BigInt(transaction.blockTimestamp)
+    },
     chainId: transaction.chainId ? hexToNumber(transaction.chainId) : void 0,
     gas: transaction.gas ? BigInt(transaction.gas) : void 0,
     gasPrice: transaction.gasPrice ? BigInt(transaction.gasPrice) : void 0,
@@ -67059,7 +67119,7 @@ async function fillTransaction(client, parameters) {
       transaction.maxFeePerGas = parameters.maxFeePerGas ?? transaction.maxFeePerGas;
     if (transaction.maxPriorityFeePerGas)
       transaction.maxPriorityFeePerGas = parameters.maxPriorityFeePerGas ?? transaction.maxPriorityFeePerGas;
-    if (transaction.nonce)
+    if (typeof transaction.nonce !== "undefined")
       transaction.nonce = parameters.nonce ?? transaction.nonce;
     const feeMultiplier = await (async () => {
       if (typeof chain?.fees?.baseFeeMultiplier === "function") {
@@ -67077,16 +67137,19 @@ async function fillTransaction(client, parameters) {
     const decimals = feeMultiplier.toString().split(".")[1]?.length ?? 0;
     const denominator = 10 ** decimals;
     const multiplyFee = (base) => base * BigInt(Math.ceil(feeMultiplier * denominator)) / BigInt(denominator);
-    if (transaction.maxFeePerGas && !parameters.maxFeePerGas)
-      transaction.maxFeePerGas = multiplyFee(transaction.maxFeePerGas);
-    if (transaction.gasPrice && !parameters.gasPrice)
-      transaction.gasPrice = multiplyFee(transaction.gasPrice);
+    if (!transaction.feePayerSignature) {
+      if (transaction.maxFeePerGas && !parameters.maxFeePerGas)
+        transaction.maxFeePerGas = multiplyFee(transaction.maxFeePerGas);
+      if (transaction.gasPrice && !parameters.gasPrice)
+        transaction.gasPrice = multiplyFee(transaction.gasPrice);
+    }
     return {
       raw: response.raw,
       transaction: {
         from: request2.from,
         ...transaction
-      }
+      },
+      ...response.capabilities ? { capabilities: response.capabilities } : {}
     };
   } catch (err) {
     throw getTransactionError(err, {
@@ -67185,12 +67248,22 @@ async function prepareTransactionRequest(client, args) {
       ...typeof maxFeePerBlobGas !== "undefined" && request2.type !== "legacy" && request2.type !== "eip2930" ? { maxFeePerBlobGas } : {},
       ...typeof maxFeePerGas !== "undefined" && request2.type !== "legacy" && request2.type !== "eip2930" ? { maxFeePerGas } : {},
       ...typeof maxPriorityFeePerGas !== "undefined" && request2.type !== "legacy" && request2.type !== "eip2930" ? { maxPriorityFeePerGas } : {},
-      ..."nonceKey" in rest && typeof rest.nonceKey !== "undefined" ? { nonceKey: rest.nonceKey } : {}
+      ..."nonceKey" in rest && typeof rest.nonceKey !== "undefined" ? { nonceKey: rest.nonceKey } : {},
+      ..."keyAuthorization" in rest && typeof rest.keyAuthorization !== "undefined" && rest.keyAuthorization !== null && !("keyAuthorization" in request2) ? { keyAuthorization: rest.keyAuthorization } : {},
+      ..."feePayerSignature" in rest && typeof rest.feePayerSignature !== "undefined" && rest.feePayerSignature !== null ? { feePayerSignature: rest.feePayerSignature } : {},
+      ..."feeToken" in rest && typeof rest.feeToken !== "undefined" && rest.feeToken !== null && !("feeToken" in request2) ? { feeToken: rest.feeToken } : {},
+      ...result.capabilities ? { _capabilities: result.capabilities } : {}
     };
   }).catch((e2) => {
     const error = e2;
     if (error.name !== "TransactionExecutionError")
       return request2;
+    const executionReverted = error.walk?.((e3) => {
+      const error2 = e3;
+      return error2.name === "ExecutionRevertedError";
+    });
+    if (executionReverted)
+      throw e2;
     const unsupported = error.walk?.((e3) => {
       const error2 = e3;
       return error2.name === "MethodNotFoundRpcError" || error2.name === "MethodNotSupportedRpcError" || error2.message?.includes("eth_fillTransaction is not available");
@@ -67203,7 +67276,7 @@ async function prepareTransactionRequest(client, args) {
   request2 = {
     ...fillResult,
     ...account ? { from: account?.address } : {},
-    ...nonce ? { nonce } : {}
+    ...typeof nonce !== "undefined" ? { nonce } : {}
   };
   const { blobs, gas, kzg, type } = request2;
   if (prepareTransactionRequest2?.fn && prepareTransactionRequest2.runAt?.includes("beforeFillParameters")) {
@@ -67822,8 +67895,25 @@ function observe(observerId, callbacks, fn) {
 }
 
 // node_modules/viem/_esm/utils/wait.js
-async function wait(time4) {
-  return new Promise((res) => setTimeout(res, time4));
+init_utils3();
+async function wait(time4, { signal } = {}) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(getAbortError(signal));
+      return;
+    }
+    const cleanup = () => signal?.removeEventListener("abort", onAbort);
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, time4);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      cleanup();
+      reject(getAbortError(signal));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 // node_modules/viem/_esm/utils/poll.js
@@ -68115,19 +68205,38 @@ async function sendRawTransaction(client, { serializedTransaction }) {
 }
 
 // node_modules/viem/_esm/utils/promise/withRetry.js
-function withRetry(fn, { delay: delay_ = 100, retryCount = 2, shouldRetry: shouldRetry2 = () => true } = {}) {
+init_utils3();
+function withRetry(fn, { delay: delay_ = 100, retryCount = 2, shouldRetry: shouldRetry2 = () => true, signal } = {}) {
   return new Promise((resolve, reject) => {
     const attemptRetry = async ({ count = 0 } = {}) => {
+      if (signal?.aborted) {
+        reject(getAbortError(signal));
+        return;
+      }
       const retry = async ({ error }) => {
         const delay = typeof delay_ === "function" ? delay_({ count, error }) : delay_;
-        if (delay)
-          await wait(delay);
+        if (delay) {
+          try {
+            await wait(delay, { signal });
+          } catch (err) {
+            reject(err);
+            return;
+          }
+        }
         attemptRetry({ count: count + 1 });
       };
       try {
         const data = await fn();
         resolve(data);
       } catch (err) {
+        if (signal?.aborted) {
+          reject(getAbortError(signal));
+          return;
+        }
+        if (isAbortError(err)) {
+          reject(err);
+          return;
+        }
         if (count < retryCount && await shouldRetry2({ count, error: err }))
           return retry({ error: err });
         reject(err);
@@ -69131,7 +69240,7 @@ async function verifyAuthorization({ address, authorization, signature }) {
 init_base();
 init_request();
 init_rpc();
-init_toHex();
+init_utils3();
 
 // node_modules/viem/_esm/utils/promise/withDedupe.js
 init_lru();
@@ -69150,7 +69259,7 @@ function withDedupe(fn, { enabled = true, id }) {
 init_stringify();
 function buildRequest(request2, options = {}) {
   return async (args, overrideOptions = {}) => {
-    const { dedupe = false, methods, retryDelay = 150, retryCount = 3, uid: uid2 } = {
+    const { dedupe = false, methods, retryDelay = 150, retryCount = 3, signal, uid: uid2 } = {
       ...options,
       ...overrideOptions
     };
@@ -69163,11 +69272,17 @@ function buildRequest(request2, options = {}) {
       throw new MethodNotSupportedRpcError(new Error("method not supported"), {
         method
       });
-    const requestId = dedupe ? stringToHex(`${uid2}.${stringify(args)}`) : void 0;
+    if (signal?.aborted)
+      throw getAbortError(signal);
+    const requestId = dedupe ? hashString(`${uid2}.${stringify(args)}`) : void 0;
     return withDedupe(() => withRetry(async () => {
       try {
-        return await request2(args);
+        return await request2(args, signal ? { signal } : void 0);
       } catch (err_) {
+        if (signal?.aborted)
+          throw getAbortError(signal);
+        if (isAbortError(err_))
+          throw err_;
         const err = err_;
         switch (err.code) {
           // -32700
@@ -69271,17 +69386,22 @@ function buildRequest(request2, options = {}) {
         return ~~(1 << count) * retryDelay;
       },
       retryCount,
+      signal,
       shouldRetry: ({ error }) => shouldRetry(error)
     }), { enabled: dedupe, id: requestId });
   };
 }
 function shouldRetry(error) {
+  if (isAbortError(error))
+    return false;
   if ("code" in error && typeof error.code === "number") {
     if (error.code === -1)
       return true;
     if (error.code === LimitExceededRpcError.code)
       return true;
     if (error.code === InternalRpcError.code)
+      return true;
+    if (error.code === 429)
       return true;
     return false;
   }
@@ -69305,6 +69425,20 @@ function shouldRetry(error) {
     return false;
   }
   return true;
+}
+function hashString(str, seed = 0) {
+  let h1 = 3735928559 ^ seed;
+  let h2 = 1103547991 ^ seed;
+  for (let i2 = 0; i2 < str.length; i2++) {
+    const ch = str.charCodeAt(i2);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ h1 >>> 16, 2246822507);
+  h1 ^= Math.imul(h2 ^ h2 >>> 16, 3266489909);
+  h2 = Math.imul(h2 ^ h2 >>> 16, 2246822507);
+  h2 ^= Math.imul(h1 ^ h1 >>> 16, 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
 }
 
 // node_modules/viem/_esm/utils/chain/defineChain.js
@@ -69332,15 +69466,17 @@ init_fromHex();
 
 // node_modules/viem/_esm/utils/rpc/http.js
 init_request();
+init_utils3();
 
 // node_modules/viem/_esm/utils/promise/withTimeout.js
+init_utils3();
 function withTimeout(fn, { errorInstance = new Error("timed out"), timeout, signal }) {
   return new Promise((resolve, reject) => {
     ;
     (async () => {
       let timeoutId;
+      const controller = new AbortController();
       try {
-        const controller = new AbortController();
         if (timeout > 0) {
           timeoutId = setTimeout(() => {
             if (signal) {
@@ -69352,8 +69488,10 @@ function withTimeout(fn, { errorInstance = new Error("timed out"), timeout, sign
         }
         resolve(await fn({ signal: controller?.signal || null }));
       } catch (err) {
-        if (err?.name === "AbortError")
+        if (controller?.signal.aborted && isAbortError(err)) {
           reject(errorInstance);
+          return;
+        }
         reject(err);
       } finally {
         clearTimeout(timeoutId);
@@ -69448,6 +69586,10 @@ function getHttpRpcClient(url_, options = {}) {
         }
         return data;
       } catch (err) {
+        if (signal_?.aborted)
+          throw getAbortError(signal_);
+        if (isAbortError(err))
+          throw err;
         if (err instanceof HttpRequestError)
           throw err;
         if (err instanceof TimeoutError)
@@ -73362,6 +73504,18 @@ var UrlRequiredError = class extends BaseError2 {
 
 // node_modules/viem/_esm/clients/transports/http.js
 init_createBatchScheduler();
+var signalId = 0;
+var signalIds = /* @__PURE__ */ new WeakMap();
+function getSignalId(signal) {
+  if (!signal)
+    return "default";
+  const id = signalIds.get(signal);
+  if (id !== void 0)
+    return id;
+  const nextId = signalId++;
+  signalIds.set(signal, nextId);
+  return nextId;
+}
 function http(url, config = {}) {
   const { batch, fetchFn, fetchOptions, key = "http", methods, name = "HTTP JSON-RPC", onFetchRequest, onFetchResponse, retryDelay, raw: raw2 } = config;
   return ({ chain, retryCount: retryCount_, timeout: timeout_ }) => {
@@ -73382,22 +73536,25 @@ function http(url, config = {}) {
       key,
       methods,
       name,
-      async request({ method, params }) {
+      async request({ method, params }, options) {
         const body = { method, params };
+        const fetchOptions2 = options?.signal ? { signal: options.signal } : void 0;
         const { schedule } = createBatchScheduler({
-          id: url_,
+          id: `${url_}.${getSignalId(options?.signal)}`,
           wait: wait2,
           shouldSplitBatch(requests) {
             return requests.length > batchSize;
           },
           fn: (body2) => rpcClient.request({
-            body: body2
+            body: body2,
+            fetchOptions: fetchOptions2
           }),
           sort: (a, b) => a.id - b.id
         });
         const fn = async (body2) => batch ? schedule(body2) : [
           await rpcClient.request({
-            body: body2
+            body: body2,
+            fetchOptions: fetchOptions2
           })
         ];
         const [{ error, result }] = await fn(body);
@@ -77622,7 +77779,7 @@ function expand_(str, max, isTop) {
       }
       const pad4 = n.some(isPadded);
       N = [];
-      for (let i2 = x2; test(i2, y); i2 += incr) {
+      for (let i2 = x2; test(i2, y) && N.length < max; i2 += incr) {
         let c;
         if (isAlphaSequence) {
           c = String.fromCharCode(i2);

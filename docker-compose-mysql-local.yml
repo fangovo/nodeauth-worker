@@ -1,6 +1,8 @@
 services:
   mysql-db:
     image: mysql:8.0
+    container_name: nodeauth-mysql
+    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: secure_password
       MYSQL_DATABASE: nodeauth
@@ -12,7 +14,7 @@ services:
   nodeauth-worker:
     image: nodeauth-worker:latest
     container_name: nodeauth
-    restart: unless-stopped
+    restart: always
     ports:
       - "3000:3000"
     environment:

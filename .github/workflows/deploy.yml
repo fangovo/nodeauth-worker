@@ -63,49 +63,19 @@ jobs:
             cp "$CONFIG_FILE" wrangler.toml
           fi
 
-      # 注入 Cloudflare Workers 名称
-      - name: Inject Workers Name
+      - name: Install TOML Parser
+        run: npm install @iarna/toml --no-save
+
+      - name: Inject Configurations via AST Parser
         env:
           CONFIG_FILE: ${{ env.WRANGLER_CONFIG || 'wrangler.toml' }}
           CLOUDFLARE_WORKERS_NAME: ${{ secrets.CLOUDFLARE_WORKERS_NAME || 'nodeauth-worker' }}
-        run: |
-          sed -i "0,/name =/s/name = \".*\"/name = \"$CLOUDFLARE_WORKERS_NAME\"/" "wrangler.toml"
-
-      - name: Inject Global Configurations
-        env:
           WORKERS_DEV: ${{ secrets.CLOUDFLARE_WORKERS_DEV }}
           PREVIEW_URLS: ${{ secrets.CLOUDFLARE_WORKERS_PREVIEW_URLS }}
           ROUTES: ${{ secrets.CLOUDFLARE_WORKERS_ROUTES }}
-        run: |
-          if [ -n "$WORKERS_DEV" ]; then
-            sed -i '/^workers_dev[[:space:]]*=/d' wrangler.toml
-            sed -i "1i workers_dev = $WORKERS_DEV" wrangler.toml
-          fi
-          
-          if [ -n "$PREVIEW_URLS" ]; then
-            sed -i '/^preview_urls[[:space:]]*=/d' wrangler.toml
-            sed -i "1i preview_urls = $PREVIEW_URLS" wrangler.toml
-          fi
-          
-          if [ -n "$ROUTES" ]; then
-            sed -i '/^\[\[routes\]\]/d; /^pattern[[:space:]]*=[[:space:]]*".*"/d; /^zone_name[[:space:]]*=[[:space:]]*".*"/d' wrangler.toml
-            
-            IFS=';' read -ra ADDR <<< "$ROUTES"
-            for row in "${ADDR[@]}"; do
-              IFS=',' read -ra PARTS <<< "$row"
-              echo -e "\n[[routes]]\npattern = \"${PARTS[0]}\"" >> wrangler.toml
-              [ ${#PARTS[@]} -ge 2 ] && echo "zone_name = \"${PARTS[1]}\"" >> wrangler.toml
-            done
-          fi
-
-      - name: Inject D1 Database ID
-        env:
-          CONFIG_FILE: ${{ env.WRANGLER_CONFIG || 'wrangler.toml' }}
           CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
           CLOUDFLARE_D1_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_DATABASE_NAME || 'nodeauth-db' }}
-        run: |
-          sed -i '/^\[\[d1_databases\]\]/d; /^[[:space:]]*database_name[[:space:]]*=/d; /^[[:space:]]*database_id[[:space:]]*=/d; /^[[:space:]]*binding[[:space:]]*=[[:space:]]*"DB"/d' wrangler.toml
-          printf "\n[[d1_databases]]\nbinding = \"DB\"\ndatabase_name = \"$CLOUDFLARE_D1_DATABASE_NAME\"\ndatabase_id = \"$CLOUDFLARE_D1_DATABASE_ID\"\n" >> wrangler.toml
+        run: node scripts/update_wrangler.js
 
       - name: Sync Database Schema
         uses: cloudflare/wrangler-action@da0e0dfe58b7a431659754fdf3f186c529afbe65 # v3

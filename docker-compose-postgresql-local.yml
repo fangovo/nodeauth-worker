@@ -1,6 +1,8 @@
 services:
   postgres-db:
     image: postgres:15-alpine
+    container_name: nodeauth-postgres
+    restart: always
     environment:
       POSTGRES_PASSWORD: secure_password
       POSTGRES_DB: nodeauth
@@ -12,7 +14,7 @@ services:
   nodeauth-worker:
     image: nodeauth-worker:latest
     container_name: nodeauth
-    restart: unless-stopped
+    restart: always
     depends_on:
       - postgres-db
     ports:
