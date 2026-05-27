@@ -19,20 +19,20 @@ try {
     }
 
     // 3. 注入全局配置 (注意处理字符串 'true'/'false' 转换为真正的 Boolean)
-    if (process.env.WORKERS_DEV) {
-        config.workers_dev = process.env.WORKERS_DEV === 'true';
+    if (process.env.CLOUDFLARE_WORKERS_DEV) {
+        config.workers_dev = process.env.CLOUDFLARE_WORKERS_DEV === 'true';
         console.log(`- Updated workers_dev to: ${config.workers_dev}`);
     }
 
-    if (process.env.PREVIEW_URLS) {
-        config.preview_urls = process.env.PREVIEW_URLS === 'true';
+    if (process.env.CLOUDFLARE_WORKERS_PREVIEW_URLS) {
+        config.preview_urls = process.env.CLOUDFLARE_WORKERS_PREVIEW_URLS === 'true';
         console.log(`- Updated preview_urls to: ${config.preview_urls}`);
     }
 
     // 4. 注入路由 (Routes)
-    if (process.env.ROUTES) {
-        // 假设输入格式为: "pattern1,zone1;pattern2,zone2" 或仅 "pattern1"
-        const routesArray = process.env.ROUTES.split(';');
+    if (process.env.CLOUDFLARE_WORKERS_ROUTES) {
+        // 输入格式为: pattern1,zone1;pattern2,zone2, 例如: demo.nodeauth.io/*,nodeauth.io
+        const routesArray = process.env.CLOUDFLARE_WORKERS_ROUTES.split(';');
         config.routes = routesArray.map(routeStr => {
             const parts = routeStr.split(',');
             const routeObj = { pattern: parts[0].trim() };

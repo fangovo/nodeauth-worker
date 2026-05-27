@@ -70,9 +70,9 @@ jobs:
         env:
           CONFIG_FILE: ${{ env.WRANGLER_CONFIG || 'wrangler.toml' }}
           CLOUDFLARE_WORKERS_NAME: ${{ secrets.CLOUDFLARE_WORKERS_NAME || 'nodeauth-worker' }}
-          WORKERS_DEV: ${{ secrets.CLOUDFLARE_WORKERS_DEV }}
-          PREVIEW_URLS: ${{ secrets.CLOUDFLARE_WORKERS_PREVIEW_URLS }}
-          ROUTES: ${{ secrets.CLOUDFLARE_WORKERS_ROUTES }}
+          CLOUDFLARE_WORKERS_DEV: ${{ secrets.CLOUDFLARE_WORKERS_DEV }}
+          CLOUDFLARE_WORKERS_PREVIEW_URLS: ${{ secrets.CLOUDFLARE_WORKERS_PREVIEW_URLS }}
+          CLOUDFLARE_WORKERS_ROUTES: ${{ secrets.CLOUDFLARE_WORKERS_ROUTES }}
           CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
           CLOUDFLARE_D1_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_DATABASE_NAME || 'nodeauth-db' }}
         run: node scripts/update_wrangler.js
@@ -120,10 +120,10 @@ jobs:
           OAUTH_WALLETCONNECT_SELF_PROXY: ${{ secrets.OAUTH_WALLETCONNECT_SELF_PROXY }}
         run: |
           SECRETS="NODEAUTH_LICENSE
-          OAUTH_ALLOW_ALL
-          OAUTH_ALLOWED_USERS
+          JWT_SECRET
           ENCRYPTION_KEY
-          JWT_SECRET"
+          OAUTH_ALLOW_ALL
+          OAUTH_ALLOWED_USERS"
           
           OPTIONAL_VARS=(
             "OAUTH_GITHUB_CLIENT_ID" "OAUTH_GITHUB_CLIENT_SECRET" "OAUTH_GITHUB_REDIRECT_URI"
@@ -161,6 +161,9 @@ jobs:
           command: deploy --minify
           secrets: ${{ steps.secret_list.outputs.secrets }}
         env:
+          NODEAUTH_LICENSE: ${{ secrets.NODEAUTH_LICENSE }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           OAUTH_ALLOW_ALL: ${{ secrets.OAUTH_ALLOW_ALL || 'false' }}
           OAUTH_ALLOWED_USERS: ${{ secrets.OAUTH_ALLOWED_USERS }}
           OAUTH_GITHUB_CLIENT_ID: ${{ secrets.OAUTH_GITHUB_CLIENT_ID }}
@@ -190,9 +193,6 @@ jobs:
           OAUTH_DROPBOX_CLIENT_SECRET: ${{ secrets.OAUTH_DROPBOX_CLIENT_SECRET }}
           OAUTH_WALLETCONNECT_PROJECT_ID: ${{ secrets.OAUTH_WALLETCONNECT_PROJECT_ID }}
           OAUTH_WALLETCONNECT_SELF_PROXY: ${{ secrets.OAUTH_WALLETCONNECT_SELF_PROXY }}
-          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          NODEAUTH_LICENSE: ${{ secrets.NODEAUTH_LICENSE }}
 
       - name: Restore Wrangler Config
         if: always() 
