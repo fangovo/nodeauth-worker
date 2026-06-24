@@ -13,10 +13,12 @@ deno.lock
 
 # 2. Dependencies
 api/index.mjs*
+cloud-functions/
 **/node_modules/
 backend/dist/netlify/
 backend/dist/worker/
 backend/dist/vercel/
+backend/dist/edgeone/
 backend/tests/
 backend/tsup.config.ts
 backend/vitest.config.ts

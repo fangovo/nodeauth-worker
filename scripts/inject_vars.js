@@ -23,6 +23,7 @@ const PLATFORM_REGISTRY = [
     { name: 'Netlify', suffix: 'netlify', envKeys: ['NETLIFY', 'NETLIFY_SITE_ID'] },
     { name: 'Vercel', suffix: 'vercel', envKeys: ['VERCEL', 'VERCEL_PROJECT_ID'] },
     { name: 'Docker', suffix: 'docker', envKeys: ['DOCKER_BUILD'] },
+    { name: 'EdgeOne Pages', suffix: 'edgeone', envKeys: ['EDGEONE_PAGES_PROJECT_NAME'] },
     { name: 'Cloudflare Workers', suffix: 'cloudflare', envKeys: [] },
 ];
 
@@ -98,7 +99,8 @@ const rootDir = path.resolve(__dirname, '..');
 const searchPaths = [
     path.join(rootDir, 'frontend/dist'),
     path.join(rootDir, 'backend/dist'),
-    path.join(rootDir, 'api')
+    path.join(rootDir, 'api'),
+    path.join(rootDir, 'cloud-functions')
 ];
 
 const replacements = {

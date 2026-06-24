@@ -12,10 +12,12 @@ deno.lock
 *.cert
 
 # 2. Dependencies
+cloud-functions/
 **/node_modules/
 backend/dist/docker/
 backend/dist/netlify/
 backend/dist/worker/
+backend/dist/edgeone/
 backend/tests/
 backend/tsup.config.ts
 backend/vitest.config.ts

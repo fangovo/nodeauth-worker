@@ -8,6 +8,7 @@
     "build:worker": "node scripts/build-worker.js",
     "build:netlify": "node scripts/build-netlify.js",
     "build:vercel": "node scripts/build-vercel.js",
+    "build:edgeone": "node scripts/build-edgeone.js",
     "test": "vitest run"
   },
   "dependencies": {
@@ -22,7 +23,7 @@
     "hono": "^4.12.20",
     "mysql2": "^3.20.0",
     "node-cron": "^4.2.1",
-    "nodemailer": "^8.0.8",
+    "nodemailer": "^9.0.1",
     "pg": "^8.20.0",
     "viem": "^2.47.6",
     "webdav": "^5.9.0"
@@ -42,7 +43,7 @@
   },
   "overrides": {
     "esbuild": "^0.28.1",
-    "undici": "7.24.6",
+    "undici": "^7.28.0",
     "picomatch": "4.0.4",
     "yaml": "2.8.3",
     "brace-expansion": "5.0.6",

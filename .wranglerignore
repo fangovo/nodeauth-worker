@@ -1,4 +1,6 @@
 api/
+cloud-functions/
 backend/dist/docker/
 backend/dist/netlify/
 backend/dist/vercel/
+backend/dist/edgeone/

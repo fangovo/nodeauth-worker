@@ -26567,6 +26567,38 @@ var init_call = __esm({
   }
 });
 
+// src/shared/utils/request.ts
+var request_exports = {};
+__export(request_exports, {
+  getRealRequestUrl: () => getRealRequestUrl
+});
+var getRealRequestUrl;
+var init_request2 = __esm({
+  "src/shared/utils/request.ts"() {
+    "use strict";
+    getRealRequestUrl = (c) => {
+      const edgeOneHost = c.req.header("eo-pages-host");
+      const forwardedHost = c.req.header("x-forwarded-host");
+      const hostHeader = c.req.header("host");
+      const requestUrl = new URL(c.req.url);
+      const forwardedProto = c.req.header("x-forwarded-proto");
+      if (edgeOneHost) {
+        requestUrl.hostname = edgeOneHost.split(",")[0].trim();
+      } else if (forwardedHost) {
+        requestUrl.hostname = forwardedHost.split(",")[0].trim();
+      } else if (hostHeader) {
+        requestUrl.hostname = hostHeader.split(",")[0].trim();
+      }
+      if (forwardedProto) {
+        requestUrl.protocol = forwardedProto.split(",")[0].trim() + ":";
+      } else if (requestUrl.hostname !== "localhost" && requestUrl.hostname !== "127.0.0.1") {
+        requestUrl.protocol = "https:";
+      }
+      return requestUrl.toString();
+    };
+  }
+});
+
 // src/shared/utils/common.ts
 function sanitizeInput(input, maxLength = SECURITY_CONFIG.MAX_INPUT_LENGTH) {
   if (typeof input !== "string") return "";
@@ -33169,11 +33201,342 @@ var require_dist = __commonJS({
   }
 });
 
+// node_modules/nodemailer/lib/punycode/index.js
+var require_punycode = __commonJS({
+  "node_modules/nodemailer/lib/punycode/index.js"(exports2, module) {
+    "use strict";
+    var maxInt = 2147483647;
+    var base = 36;
+    var tMin = 1;
+    var tMax = 26;
+    var skew = 38;
+    var damp = 700;
+    var initialBias = 72;
+    var initialN = 128;
+    var delimiter = "-";
+    var regexPunycode = /^xn--/;
+    var regexNonASCII = /[^\0-\x7F]/;
+    var regexSeparators = /[\x2E\u3002\uFF0E\uFF61]/g;
+    var errors = {
+      overflow: "Overflow: input needs wider integers to process",
+      "not-basic": "Illegal input >= 0x80 (not a basic code point)",
+      "invalid-input": "Invalid input"
+    };
+    var baseMinusTMin = base - tMin;
+    var floor = Math.floor;
+    var stringFromCharCode = String.fromCharCode;
+    function error(type) {
+      throw new RangeError(errors[type]);
+    }
+    function map(array, callback) {
+      const result = [];
+      let length = array.length;
+      while (length--) {
+        result[length] = callback(array[length]);
+      }
+      return result;
+    }
+    function mapDomain(domain, callback) {
+      const parts = domain.split("@");
+      let result = "";
+      if (parts.length > 1) {
+        result = parts[0] + "@";
+        domain = parts[1];
+      }
+      domain = domain.replace(regexSeparators, ".");
+      const labels = domain.split(".");
+      const encoded = map(labels, callback).join(".");
+      return result + encoded;
+    }
+    function ucs2decode(string) {
+      const output = [];
+      let counter = 0;
+      const length = string.length;
+      while (counter < length) {
+        const value = string.charCodeAt(counter++);
+        if (value >= 55296 && value <= 56319 && counter < length) {
+          const extra = string.charCodeAt(counter++);
+          if ((extra & 64512) == 56320) {
+            output.push(((value & 1023) << 10) + (extra & 1023) + 65536);
+          } else {
+            output.push(value);
+            counter--;
+          }
+        } else {
+          output.push(value);
+        }
+      }
+      return output;
+    }
+    var ucs2encode = (codePoints) => String.fromCodePoint(...codePoints);
+    var basicToDigit = function(codePoint) {
+      if (codePoint >= 48 && codePoint < 58) {
+        return 26 + (codePoint - 48);
+      }
+      if (codePoint >= 65 && codePoint < 91) {
+        return codePoint - 65;
+      }
+      if (codePoint >= 97 && codePoint < 123) {
+        return codePoint - 97;
+      }
+      return base;
+    };
+    var digitToBasic = function(digit, flag) {
+      return digit + 22 + 75 * (digit < 26) - ((flag != 0) << 5);
+    };
+    var adapt = function(delta, numPoints, firstTime) {
+      let k = 0;
+      delta = firstTime ? floor(delta / damp) : delta >> 1;
+      delta += floor(delta / numPoints);
+      for (
+        ;
+        /* no initialization */
+        delta > baseMinusTMin * tMax >> 1;
+        k += base
+      ) {
+        delta = floor(delta / baseMinusTMin);
+      }
+      return floor(k + (baseMinusTMin + 1) * delta / (delta + skew));
+    };
+    var decode2 = function(input) {
+      const output = [];
+      const inputLength = input.length;
+      let i2 = 0;
+      let n = initialN;
+      let bias = initialBias;
+      let basic = input.lastIndexOf(delimiter);
+      if (basic < 0) {
+        basic = 0;
+      }
+      for (let j = 0; j < basic; ++j) {
+        if (input.charCodeAt(j) >= 128) {
+          error("not-basic");
+        }
+        output.push(input.charCodeAt(j));
+      }
+      for (let index2 = basic > 0 ? basic + 1 : 0; index2 < inputLength; ) {
+        const oldi = i2;
+        for (let w = 1, k = base; ; k += base) {
+          if (index2 >= inputLength) {
+            error("invalid-input");
+          }
+          const digit = basicToDigit(input.charCodeAt(index2++));
+          if (digit >= base) {
+            error("invalid-input");
+          }
+          if (digit > floor((maxInt - i2) / w)) {
+            error("overflow");
+          }
+          i2 += digit * w;
+          const t2 = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
+          if (digit < t2) {
+            break;
+          }
+          const baseMinusT = base - t2;
+          if (w > floor(maxInt / baseMinusT)) {
+            error("overflow");
+          }
+          w *= baseMinusT;
+        }
+        const out = output.length + 1;
+        bias = adapt(i2 - oldi, out, oldi == 0);
+        if (floor(i2 / out) > maxInt - n) {
+          error("overflow");
+        }
+        n += floor(i2 / out);
+        i2 %= out;
+        output.splice(i2++, 0, n);
+      }
+      return String.fromCodePoint(...output);
+    };
+    var encode5 = function(input) {
+      const output = [];
+      input = ucs2decode(input);
+      const inputLength = input.length;
+      let n = initialN;
+      let delta = 0;
+      let bias = initialBias;
+      for (const currentValue of input) {
+        if (currentValue < 128) {
+          output.push(stringFromCharCode(currentValue));
+        }
+      }
+      const basicLength = output.length;
+      let handledCPCount = basicLength;
+      if (basicLength) {
+        output.push(delimiter);
+      }
+      while (handledCPCount < inputLength) {
+        let m2 = maxInt;
+        for (const currentValue of input) {
+          if (currentValue >= n && currentValue < m2) {
+            m2 = currentValue;
+          }
+        }
+        const handledCPCountPlusOne = handledCPCount + 1;
+        if (m2 - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
+          error("overflow");
+        }
+        delta += (m2 - n) * handledCPCountPlusOne;
+        n = m2;
+        for (const currentValue of input) {
+          if (currentValue < n && ++delta > maxInt) {
+            error("overflow");
+          }
+          if (currentValue === n) {
+            let q = delta;
+            for (let k = base; ; k += base) {
+              const t2 = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
+              if (q < t2) {
+                break;
+              }
+              const qMinusT = q - t2;
+              const baseMinusT = base - t2;
+              output.push(stringFromCharCode(digitToBasic(t2 + qMinusT % baseMinusT, 0)));
+              q = floor(qMinusT / baseMinusT);
+            }
+            output.push(stringFromCharCode(digitToBasic(q, 0)));
+            bias = adapt(delta, handledCPCountPlusOne, handledCPCount === basicLength);
+            delta = 0;
+            ++handledCPCount;
+          }
+        }
+        ++delta;
+        ++n;
+      }
+      return output.join("");
+    };
+    var toUnicode = function(input) {
+      return mapDomain(input, function(string) {
+        return regexPunycode.test(string) ? decode2(string.slice(4).toLowerCase()) : string;
+      });
+    };
+    var toASCII = function(input) {
+      return mapDomain(input, function(string) {
+        return regexNonASCII.test(string) ? "xn--" + encode5(string) : string;
+      });
+    };
+    var punycode = {
+      /**
+       * A string representing the current Punycode.js version number.
+       * @memberOf punycode
+       * @type String
+       */
+      version: "2.3.1",
+      /**
+       * An object of methods to convert from JavaScript's internal character
+       * representation (UCS-2) to Unicode code points, and back.
+       * @see <https://mathiasbynens.be/notes/javascript-encoding>
+       * @memberOf punycode
+       * @type Object
+       */
+      ucs2: {
+        decode: ucs2decode,
+        encode: ucs2encode
+      },
+      decode: decode2,
+      encode: encode5,
+      toASCII,
+      toUnicode
+    };
+    module.exports = punycode;
+  }
+});
+
+// node_modules/nodemailer/lib/shared/url.js
+var require_url = __commonJS({
+  "node_modules/nodemailer/lib/shared/url.js"(exports2, module) {
+    "use strict";
+    var urllib = __require("url");
+    var punycode = require_punycode();
+    var URLImpl = typeof URL !== "undefined" && URL || urllib.URL;
+    var SLASHLESS_AUTHORITY = /^([a-zA-Z][a-zA-Z0-9+.-]*:)(?!\/\/)(.+)$/;
+    function safeDecode(str) {
+      try {
+        return decodeURIComponent(str);
+      } catch (_err) {
+        return str;
+      }
+    }
+    function normalizeHostname(raw2) {
+      let hostname = raw2 || "";
+      if (!hostname) {
+        return "";
+      }
+      if (hostname.charAt(0) === "[" && hostname.charAt(hostname.length - 1) === "]") {
+        return hostname.slice(1, -1);
+      }
+      return punycode.toASCII(safeDecode(hostname));
+    }
+    module.exports.parse = (input, parseQueryString) => {
+      input = input || "";
+      if (!URLImpl) {
+        return urllib.parse(input, parseQueryString);
+      }
+      const slashless = SLASHLESS_AUTHORITY.exec(input);
+      const normalized = slashless ? slashless[1] + "//" + slashless[2] : input;
+      let u;
+      try {
+        u = new URLImpl(normalized);
+      } catch (_err) {
+        return urllib.parse(input, parseQueryString);
+      }
+      const hostname = normalizeHostname(u.hostname);
+      const port = u.port || null;
+      const pathname = u.pathname || null;
+      const search = u.search || null;
+      let auth2 = null;
+      if (u.username || u.password) {
+        auth2 = safeDecode(u.username) + (u.password ? ":" + safeDecode(u.password) : "");
+      }
+      let query;
+      if (parseQueryString) {
+        query = /* @__PURE__ */ Object.create(null);
+        u.searchParams.forEach((value, key) => {
+          if (Object.prototype.hasOwnProperty.call(query, key)) {
+            if (Array.isArray(query[key])) {
+              query[key].push(value);
+            } else {
+              query[key] = [query[key], value];
+            }
+          } else {
+            query[key] = value;
+          }
+        });
+      } else {
+        query = search ? search.slice(1) : null;
+      }
+      return {
+        protocol: u.protocol || null,
+        host: u.host || null,
+        hostname,
+        port,
+        pathname,
+        search,
+        path: (pathname || "") + (search || "") || null,
+        href: u.href,
+        auth: auth2,
+        query
+      };
+    };
+    module.exports.resolve = (from14, to) => {
+      if (!URLImpl) {
+        return urllib.resolve(from14, to);
+      }
+      try {
+        return new URLImpl(to, from14).href;
+      } catch (_err) {
+        return urllib.resolve(from14, to);
+      }
+    };
+  }
+});
+
 // node_modules/nodemailer/lib/fetch/cookies.js
 var require_cookies = __commonJS({
   "node_modules/nodemailer/lib/fetch/cookies.js"(exports2, module) {
     "use strict";
-    var urllib = __require("url");
+    var urllib = require_url();
     var SESSION_TIMEOUT = 1800;
     var Cookies = class {
       constructor(options) {
@@ -33382,7 +33745,7 @@ var require_package = __commonJS({
   "node_modules/nodemailer/package.json"(exports2, module) {
     module.exports = {
       name: "nodemailer",
-      version: "8.0.11",
+      version: "9.0.1",
       description: "Easy as cake e-mail sending from your Node.js applications",
       main: "lib/nodemailer.js",
       scripts: {
@@ -33409,10 +33772,10 @@ var require_package = __commonJS({
       },
       homepage: "https://nodemailer.com/",
       devDependencies: {
-        "@aws-sdk/client-sesv2": "3.1065.0",
+        "@aws-sdk/client-sesv2": "3.1068.0",
         bunyan: "1.8.15",
         c8: "11.0.0",
-        eslint: "10.4.1",
+        eslint: "10.5.0",
         "eslint-config-prettier": "10.1.8",
         globals: "17.6.0",
         libbase64: "1.3.0",
@@ -33421,7 +33784,7 @@ var require_package = __commonJS({
         prettier: "3.8.4",
         proxy: "1.0.2",
         "proxy-test-server": "1.0.0",
-        "smtp-server": "3.18.5"
+        "smtp-server": "3.19.0"
       },
       engines: {
         node: ">=6.0.0"
@@ -33477,7 +33840,7 @@ var require_fetch = __commonJS({
     "use strict";
     var http4 = __require("http");
     var https2 = __require("https");
-    var urllib = __require("url");
+    var urllib = require_url();
     var zlib2 = __require("zlib");
     var { PassThrough: PassThrough3 } = __require("stream");
     var Cookies = require_cookies();
@@ -33576,7 +33939,10 @@ var require_fetch = __commonJS({
         path: parsed.path,
         port: parsed.port ? parsed.port : parsed.protocol === "https:" ? 443 : 80,
         headers,
-        rejectUnauthorized: false,
+        // Validate TLS certificates by default. Callers that genuinely need to
+        // reach a self-signed/internal host opt out explicitly with
+        // options.tls = { rejectUnauthorized: false }.
+        rejectUnauthorized: true,
         agent: false
       };
       if (options.tls) {
@@ -33647,7 +34013,19 @@ var require_fetch = __commonJS({
           }
           options.method = "GET";
           options.body = false;
-          return nmfetch(urllib.resolve(url, res.headers.location), options);
+          const redirectUrl = urllib.resolve(url, res.headers.location);
+          const redirectParsed = urllib.parse(redirectUrl);
+          const crossHost = redirectParsed.hostname !== parsed.hostname;
+          const downgrade = parsed.protocol === "https:" && redirectParsed.protocol === "http:";
+          if (options.headers && (crossHost || downgrade)) {
+            const sensitive = ["authorization", "cookie", "proxy-authorization"];
+            Object.keys(options.headers).forEach((key) => {
+              if (sensitive.includes(key.toLowerCase())) {
+                delete options.headers[key];
+              }
+            });
+          }
+          return nmfetch(redirectUrl, options);
         }
         fetchRes.statusCode = res.statusCode;
         fetchRes.headers = res.headers;
@@ -33712,7 +34090,7 @@ var require_fetch = __commonJS({
 var require_shared = __commonJS({
   "node_modules/nodemailer/lib/shared/index.js"(exports2, module) {
     "use strict";
-    var urllib = __require("url");
+    var urllib = require_url();
     var util = __require("util");
     var fs3 = __require("fs");
     var nmfetch = require_fetch();
@@ -34130,7 +34508,7 @@ var require_shared = __commonJS({
               callback(err);
             });
           }
-          return resolveStream(nmfetch(content.path || content.href), callback);
+          return resolveStream(nmfetch(content.path || content.href, { headers: content.httpHeaders, tls: content.tls }), callback);
         } else if (/^data:/i.test(content.path || content.href)) {
           const parsedDataUri = module.exports.parseDataURI(content.path || content.href);
           return callback(null, parsedDataUri && parsedDataUri.data ? parsedDataUri.data : Buffer.alloc(0));
@@ -36355,248 +36733,6 @@ var require_mime_types = __commonJS({
   }
 });
 
-// node_modules/nodemailer/lib/punycode/index.js
-var require_punycode = __commonJS({
-  "node_modules/nodemailer/lib/punycode/index.js"(exports2, module) {
-    "use strict";
-    var maxInt = 2147483647;
-    var base = 36;
-    var tMin = 1;
-    var tMax = 26;
-    var skew = 38;
-    var damp = 700;
-    var initialBias = 72;
-    var initialN = 128;
-    var delimiter = "-";
-    var regexPunycode = /^xn--/;
-    var regexNonASCII = /[^\0-\x7F]/;
-    var regexSeparators = /[\x2E\u3002\uFF0E\uFF61]/g;
-    var errors = {
-      overflow: "Overflow: input needs wider integers to process",
-      "not-basic": "Illegal input >= 0x80 (not a basic code point)",
-      "invalid-input": "Invalid input"
-    };
-    var baseMinusTMin = base - tMin;
-    var floor = Math.floor;
-    var stringFromCharCode = String.fromCharCode;
-    function error(type) {
-      throw new RangeError(errors[type]);
-    }
-    function map(array, callback) {
-      const result = [];
-      let length = array.length;
-      while (length--) {
-        result[length] = callback(array[length]);
-      }
-      return result;
-    }
-    function mapDomain(domain, callback) {
-      const parts = domain.split("@");
-      let result = "";
-      if (parts.length > 1) {
-        result = parts[0] + "@";
-        domain = parts[1];
-      }
-      domain = domain.replace(regexSeparators, ".");
-      const labels = domain.split(".");
-      const encoded = map(labels, callback).join(".");
-      return result + encoded;
-    }
-    function ucs2decode(string) {
-      const output = [];
-      let counter = 0;
-      const length = string.length;
-      while (counter < length) {
-        const value = string.charCodeAt(counter++);
-        if (value >= 55296 && value <= 56319 && counter < length) {
-          const extra = string.charCodeAt(counter++);
-          if ((extra & 64512) == 56320) {
-            output.push(((value & 1023) << 10) + (extra & 1023) + 65536);
-          } else {
-            output.push(value);
-            counter--;
-          }
-        } else {
-          output.push(value);
-        }
-      }
-      return output;
-    }
-    var ucs2encode = (codePoints) => String.fromCodePoint(...codePoints);
-    var basicToDigit = function(codePoint) {
-      if (codePoint >= 48 && codePoint < 58) {
-        return 26 + (codePoint - 48);
-      }
-      if (codePoint >= 65 && codePoint < 91) {
-        return codePoint - 65;
-      }
-      if (codePoint >= 97 && codePoint < 123) {
-        return codePoint - 97;
-      }
-      return base;
-    };
-    var digitToBasic = function(digit, flag) {
-      return digit + 22 + 75 * (digit < 26) - ((flag != 0) << 5);
-    };
-    var adapt = function(delta, numPoints, firstTime) {
-      let k = 0;
-      delta = firstTime ? floor(delta / damp) : delta >> 1;
-      delta += floor(delta / numPoints);
-      for (
-        ;
-        /* no initialization */
-        delta > baseMinusTMin * tMax >> 1;
-        k += base
-      ) {
-        delta = floor(delta / baseMinusTMin);
-      }
-      return floor(k + (baseMinusTMin + 1) * delta / (delta + skew));
-    };
-    var decode2 = function(input) {
-      const output = [];
-      const inputLength = input.length;
-      let i2 = 0;
-      let n = initialN;
-      let bias = initialBias;
-      let basic = input.lastIndexOf(delimiter);
-      if (basic < 0) {
-        basic = 0;
-      }
-      for (let j = 0; j < basic; ++j) {
-        if (input.charCodeAt(j) >= 128) {
-          error("not-basic");
-        }
-        output.push(input.charCodeAt(j));
-      }
-      for (let index2 = basic > 0 ? basic + 1 : 0; index2 < inputLength; ) {
-        const oldi = i2;
-        for (let w = 1, k = base; ; k += base) {
-          if (index2 >= inputLength) {
-            error("invalid-input");
-          }
-          const digit = basicToDigit(input.charCodeAt(index2++));
-          if (digit >= base) {
-            error("invalid-input");
-          }
-          if (digit > floor((maxInt - i2) / w)) {
-            error("overflow");
-          }
-          i2 += digit * w;
-          const t2 = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
-          if (digit < t2) {
-            break;
-          }
-          const baseMinusT = base - t2;
-          if (w > floor(maxInt / baseMinusT)) {
-            error("overflow");
-          }
-          w *= baseMinusT;
-        }
-        const out = output.length + 1;
-        bias = adapt(i2 - oldi, out, oldi == 0);
-        if (floor(i2 / out) > maxInt - n) {
-          error("overflow");
-        }
-        n += floor(i2 / out);
-        i2 %= out;
-        output.splice(i2++, 0, n);
-      }
-      return String.fromCodePoint(...output);
-    };
-    var encode5 = function(input) {
-      const output = [];
-      input = ucs2decode(input);
-      const inputLength = input.length;
-      let n = initialN;
-      let delta = 0;
-      let bias = initialBias;
-      for (const currentValue of input) {
-        if (currentValue < 128) {
-          output.push(stringFromCharCode(currentValue));
-        }
-      }
-      const basicLength = output.length;
-      let handledCPCount = basicLength;
-      if (basicLength) {
-        output.push(delimiter);
-      }
-      while (handledCPCount < inputLength) {
-        let m2 = maxInt;
-        for (const currentValue of input) {
-          if (currentValue >= n && currentValue < m2) {
-            m2 = currentValue;
-          }
-        }
-        const handledCPCountPlusOne = handledCPCount + 1;
-        if (m2 - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
-          error("overflow");
-        }
-        delta += (m2 - n) * handledCPCountPlusOne;
-        n = m2;
-        for (const currentValue of input) {
-          if (currentValue < n && ++delta > maxInt) {
-            error("overflow");
-          }
-          if (currentValue === n) {
-            let q = delta;
-            for (let k = base; ; k += base) {
-              const t2 = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
-              if (q < t2) {
-                break;
-              }
-              const qMinusT = q - t2;
-              const baseMinusT = base - t2;
-              output.push(stringFromCharCode(digitToBasic(t2 + qMinusT % baseMinusT, 0)));
-              q = floor(qMinusT / baseMinusT);
-            }
-            output.push(stringFromCharCode(digitToBasic(q, 0)));
-            bias = adapt(delta, handledCPCountPlusOne, handledCPCount === basicLength);
-            delta = 0;
-            ++handledCPCount;
-          }
-        }
-        ++delta;
-        ++n;
-      }
-      return output.join("");
-    };
-    var toUnicode = function(input) {
-      return mapDomain(input, function(string) {
-        return regexPunycode.test(string) ? decode2(string.slice(4).toLowerCase()) : string;
-      });
-    };
-    var toASCII = function(input) {
-      return mapDomain(input, function(string) {
-        return regexNonASCII.test(string) ? "xn--" + encode5(string) : string;
-      });
-    };
-    var punycode = {
-      /**
-       * A string representing the current Punycode.js version number.
-       * @memberOf punycode
-       * @type String
-       */
-      version: "2.3.1",
-      /**
-       * An object of methods to convert from JavaScript's internal character
-       * representation (UCS-2) to Unicode code points, and back.
-       * @see <https://mathiasbynens.be/notes/javascript-encoding>
-       * @memberOf punycode
-       * @type Object
-       */
-      ucs2: {
-        decode: ucs2decode,
-        encode: ucs2encode
-      },
-      decode: decode2,
-      encode: encode5,
-      toASCII,
-      toUnicode
-    };
-    module.exports = punycode;
-  }
-});
-
 // node_modules/nodemailer/lib/base64/index.js
 var require_base642 = __commonJS({
   "node_modules/nodemailer/lib/base64/index.js"(exports2, module) {
@@ -38484,7 +38620,7 @@ var require_mime_node = __commonJS({
             });
             return contentStream;
           }
-          return nmfetch(content.href, { headers: content.httpHeaders });
+          return nmfetch(content.href, { headers: content.httpHeaders, tls: content.tls });
         }
         contentStream = new PassThrough3();
         setImmediate(() => {
@@ -38760,7 +38896,11 @@ var require_mail_composer = __commonJS({
         this._useAlternative = this._alternatives.length > 1;
         this._useMixed = this._attachments.attached.length > 1 || this._alternatives.length && this._attachments.attached.length === 1;
         if (this.mail.raw) {
-          this.message = new MimeNode("message/rfc822", { newline: this.mail.newline }).setRaw(this.mail.raw);
+          this.message = new MimeNode("message/rfc822", {
+            newline: this.mail.newline,
+            disableUrlAccess: this.mail.disableUrlAccess,
+            disableFileAccess: this.mail.disableFileAccess
+          }).setRaw(this.mail.raw);
         } else if (this._useMixed) {
           this.message = this._createMixed();
         } else if (this._useAlternative) {
@@ -38844,7 +38984,8 @@ var require_mail_composer = __commonJS({
           } else if (attachment.href) {
             data.content = {
               href: attachment.href,
-              httpHeaders: attachment.httpHeaders
+              httpHeaders: attachment.httpHeaders,
+              tls: attachment.tls
             };
           } else {
             data.content = attachment.content || "";
@@ -39731,17 +39872,22 @@ var require_http_proxy_client = __commonJS({
     "use strict";
     var net = __require("net");
     var tls = __require("tls");
-    var urllib = __require("url");
+    var urllib = require_url();
     var errors = require_errors2();
-    function httpProxyClient(proxyUrl, destinationPort, destinationHost, callback) {
+    function httpProxyClient(proxyUrl, destinationPort, destinationHost, tlsOptions, callback) {
+      if (typeof tlsOptions === "function") {
+        callback = tlsOptions;
+        tlsOptions = {};
+      }
+      tlsOptions = tlsOptions || {};
       const proxy = urllib.parse(proxyUrl);
-      const options = {
+      const connectOptions = {
         host: proxy.hostname,
         port: Number(proxy.port) ? Number(proxy.port) : proxy.protocol === "https:" ? 443 : 80
       };
       let connect;
       if (proxy.protocol === "https:") {
-        options.rejectUnauthorized = false;
+        connectOptions.rejectUnauthorized = tlsOptions.rejectUnauthorized !== false;
         connect = tls.connect.bind(tls);
       } else {
         connect = net.connect.bind(net);
@@ -39764,7 +39910,7 @@ var require_http_proxy_client = __commonJS({
         err.code = "ETIMEDOUT";
         tempSocketErr(err);
       };
-      socket = connect(options, () => {
+      socket = connect(connectOptions, () => {
         if (finished) {
           return;
         }
@@ -40099,7 +40245,7 @@ var require_mailer = __commonJS({
     var httpProxyClient = require_http_proxy_client();
     var errors = require_errors2();
     var util = __require("util");
-    var urllib = __require("url");
+    var urllib = require_url();
     var packageData = require_package();
     var MailMessage = require_mail_message();
     var net = __require("net");
@@ -40357,7 +40503,7 @@ var require_mailer = __commonJS({
             // Connect using a HTTP CONNECT method
             case "http":
             case "https":
-              httpProxyClient(proxy.href, options.port, options.host, (err2, socket) => {
+              httpProxyClient(proxy.href, options.port, options.host, this.options.tls || {}, (err2, socket) => {
                 if (err2) {
                   return callback(err2);
                 }
@@ -54013,7 +54159,41 @@ var SQLiteTransaction = class extends BaseSQLiteDatabase {
   }
 };
 
+// src/shared/db/schema/utils.ts
+function parseDatabasePublicKey(value) {
+  let parsedPk = value;
+  if (typeof parsedPk === "object" && !Array.isArray(parsedPk) && parsedPk !== null) {
+    const tempBytes = new Uint8Array(Object.values(parsedPk));
+    if (tempBytes[0] === 91 || tempBytes[0] >= 48 && tempBytes[0] <= 57) {
+      parsedPk = new TextDecoder().decode(tempBytes);
+    } else {
+      parsedPk = tempBytes;
+    }
+  }
+  if (typeof parsedPk === "string") {
+    try {
+      parsedPk = JSON.parse(parsedPk);
+    } catch (e2) {
+      if (parsedPk.includes(",")) {
+        parsedPk = parsedPk.split(",").map(Number);
+      }
+    }
+  }
+  return new Uint8Array(Array.isArray(parsedPk) ? parsedPk : Object.values(parsedPk));
+}
+
 // src/shared/db/schema/sqlite.ts
+var webAuthnPublicKey = customType2({
+  dataType() {
+    return "text";
+  },
+  toDriver(val) {
+    return JSON.stringify(Array.from(val));
+  },
+  fromDriver(value) {
+    return parseDatabasePublicKey(value);
+  }
+});
 var vault = sqliteTable("vault", {
   id: text2("id").primaryKey(),
   // UUID
@@ -54079,7 +54259,7 @@ var authPasskeys = sqliteTable("auth_passkeys", {
   // 在本应用中绑定的是邮箱
   name: text2("name"),
   // 别名
-  publicKey: text2("public_key").notNull(),
+  publicKey: webAuthnPublicKey("public_key").notNull(),
   // Uint8Array 序列化后的数组
   counter: integer2("counter").default(0),
   // 认证流计算器
@@ -58078,6 +58258,17 @@ var MySqlTransaction = class extends MySqlDatabase {
 };
 
 // src/shared/db/schema/mysql.ts
+var webAuthnPublicKey2 = customType3({
+  dataType() {
+    return "longtext";
+  },
+  toDriver(val) {
+    return JSON.stringify(Array.from(val));
+  },
+  fromDriver(value) {
+    return parseDatabasePublicKey(value);
+  }
+});
 var vault2 = mysqlTable("vault", {
   id: varchar2("id", { length: 36 }).primaryKey(),
   service: varchar2("service", { length: 255 }).notNull(),
@@ -58131,7 +58322,7 @@ var authPasskeys2 = mysqlTable("auth_passkeys", {
   credentialId: varchar2("credential_id", { length: 255 }).primaryKey(),
   userId: varchar2("user_id", { length: 255 }).notNull(),
   name: varchar2("name", { length: 255 }),
-  publicKey: longtext("public_key").notNull(),
+  publicKey: webAuthnPublicKey2("public_key").notNull(),
   counter: bigint2("counter", { mode: "number" }).default(0),
   lastUsedAt: bigint2("last_used_at", { mode: "number" }),
   transports: varchar2("transports", { length: 255 }),
@@ -61386,6 +61577,17 @@ var PgTransaction = class extends PgDatabase {
 };
 
 // src/shared/db/schema/pg.ts
+var webAuthnPublicKey3 = customType({
+  dataType() {
+    return "text";
+  },
+  toDriver(val) {
+    return JSON.stringify(Array.from(val));
+  },
+  fromDriver(value) {
+    return parseDatabasePublicKey(value);
+  }
+});
 var vault3 = pgTable("vault", {
   id: varchar("id").primaryKey(),
   service: varchar("service").notNull(),
@@ -61439,7 +61641,7 @@ var authPasskeys3 = pgTable("auth_passkeys", {
   credentialId: varchar("credential_id").primaryKey(),
   userId: varchar("user_id").notNull(),
   name: varchar("name"),
-  publicKey: text("public_key").notNull(),
+  publicKey: webAuthnPublicKey3("public_key").notNull(),
   counter: bigint("counter", { mode: "number" }).default(0),
   lastUsedAt: bigint("last_used_at", { mode: "number" }),
   transports: text("transports"),
@@ -66247,25 +66449,34 @@ var WebAuthnService = class {
    * 验证注册响应
    */
   async verifyRegistrationResponse(userEmail, body, expectedChallenge, credentialName) {
-    const verification = await verifyRegistrationResponse({
-      response: body,
-      expectedChallenge,
-      expectedOrigin: this.origin,
-      expectedRPID: this.rpID
-    });
-    if (verification.verified && verification.registrationInfo) {
-      const { credential } = verification.registrationInfo;
-      await this.env.DB.insert(authPasskeys4).values({
-        credentialId: credential.id,
-        userId: userEmail,
-        publicKey: credential.publicKey,
-        counter: verification.registrationInfo.credential.counter,
-        name: credentialName || `Passkey ${(/* @__PURE__ */ new Date()).toLocaleDateString()}`,
-        createdAt: Date.now()
+    try {
+      const verification = await verifyRegistrationResponse({
+        response: body,
+        expectedChallenge,
+        expectedOrigin: this.origin,
+        expectedRPID: this.rpID
       });
-      return { success: true };
+      if (verification.verified && verification.registrationInfo) {
+        const { credential } = verification.registrationInfo;
+        await this.env.DB.insert(authPasskeys4).values({
+          credentialId: credential.id,
+          userId: userEmail,
+          publicKey: credential.publicKey,
+          // 经过 customType 处理
+          counter: verification.registrationInfo.credential.counter,
+          name: credentialName || `Passkey ${(/* @__PURE__ */ new Date()).toLocaleDateString()}`,
+          createdAt: Date.now()
+        });
+        return { success: true };
+      }
+      throw new AppError("webauthn_registration_failed", 400);
+    } catch (error) {
+      console.error("WebAuthn Registration Error:", error);
+      if (this.env.ENVIRONMENT !== "development") {
+        throw new AppError("registration_failed", 400);
+      }
+      throw new AppError(`registration_failed: ${error.message || error}`, 400);
     }
-    throw new AppError("webauthn_registration_failed", 400);
   }
   /**
    * 生成登录选项
@@ -66286,18 +66497,34 @@ var WebAuthnService = class {
     if (!credential) {
       throw new AppError("passkey_not_found", 404);
     }
-    const verification = await verifyAuthenticationResponse({
-      response: body,
-      expectedChallenge,
-      expectedOrigin: this.origin,
-      expectedRPID: this.rpID,
-      credential: {
-        id: credential.credentialId,
-        publicKey: new Uint8Array(Object.values(credential.publicKey)),
-        counter: credential.counter,
-        transports: []
+    let verification;
+    try {
+      verification = await verifyAuthenticationResponse({
+        response: body,
+        expectedChallenge,
+        expectedOrigin: this.origin,
+        expectedRPID: this.rpID,
+        credential: {
+          id: credential.credentialId,
+          publicKey: credential.publicKey,
+          counter: credential.counter,
+          transports: []
+        }
+      });
+    } catch (error) {
+      console.error("WebAuthn Auth Error:", error);
+      if (this.env.ENVIRONMENT !== "development") {
+        throw new AppError("authentication_failed", 400);
       }
-    });
+      let pkStr = "";
+      try {
+        pkStr = JSON.stringify(credential.publicKey).substring(0, 100);
+      } catch (e2) {
+        pkStr = String(credential.publicKey);
+      }
+      const debugInfo = `len=${credential.publicKey?.length}, type=${typeof credential.publicKey}, val=${pkStr}`;
+      throw new AppError(`login_failed: ${error.message || error} | Debug: ${debugInfo}`, 400);
+    }
     if (verification.verified && verification.authenticationInfo) {
       await this.env.DB.update(authPasskeys4).set({
         counter: verification.authenticationInfo.newCounter,
@@ -74002,10 +74229,11 @@ var Web3WalletAuthService = class {
 
 // src/features/auth/authRoutes.ts
 init_logger();
+init_request2();
 var auth = new Hono2();
 var isSecureContext = (c) => c.env.ENVIRONMENT !== "development";
 var getService = (c) => new AuthService(c.env);
-var getWebAuthnService = (c) => new WebAuthnService(c.env, c.req.url, c.req.header());
+var getWebAuthnService = (c) => new WebAuthnService(c.env, getRealRequestUrl(c), c.req.header());
 var getWeb3WalletAuthService = (c) => new Web3WalletAuthService(c.env);
 var getSessionService = (c) => new SessionService(c.env);
 var cachedPasskeyStatus = null;
@@ -88568,7 +88796,8 @@ health.get("/health-check", async (c) => {
   c.header("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   c.header("Pragma", "no-cache");
   c.header("Expires", "0");
-  const result = await runHealthCheck(c.env, c.req.url);
+  const { getRealRequestUrl: getRealRequestUrl2 } = await Promise.resolve().then(() => (init_request2(), request_exports));
+  const result = await runHealthCheck(c.env, getRealRequestUrl2(c));
   return c.json({
     success: true,
     ...result
@@ -88689,7 +88918,8 @@ app.use("/api/*", async (c, next) => {
     await next();
     return;
   }
-  const securityResult = await runHealthCheck(c.env, c.req.url);
+  const { getRealRequestUrl: getRealRequestUrl2 } = await Promise.resolve().then(() => (init_request2(), request_exports));
+  const securityResult = await runHealthCheck(c.env, getRealRequestUrl2(c));
   if (securityResult.status === "fail") {
     return c.json({
       code: 403,
