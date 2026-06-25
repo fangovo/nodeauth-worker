@@ -89977,7 +89977,8 @@ async function onRequest(context) {
       const authHeader = req.headers.get("authorization");
       const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
       const isSecretValid = process.env.CRON_SECRET && (authHeader === expectedAuth || urlObj.searchParams.get("secret") === process.env.CRON_SECRET);
-      if (!isSecretValid) {
+      const isEdgeOneNativeCron = (urlObj.hostname.endsWith(".edgeone.dev") || urlObj.hostname.endsWith(".edgeone.cool") || urlObj.hostname.endsWith(".qcloudteo.com")) && urlObj.searchParams.has("eo_token") && urlObj.searchParams.has("eo_time");
+      if (!isSecretValid && !isEdgeOneNativeCron) {
         console.warn("\u26A0\uFE0F [EdgeOne Cron] Unauthorized access attempt blocked:", urlObj.pathname);
         return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
           status: 401,
