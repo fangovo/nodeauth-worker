@@ -1,4 +1,4 @@
-name: Restart Phala.io CVM
+name: Restart Phala CVM
 on:
   workflow_run:
     workflows: ["Build and push Docker images"]
@@ -9,12 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }} 
     steps:
-      - name: Restart Phala.io CVM
+      - name: Restart Phala CVM
         env:
           PHALA_CLOUD_API_KEY: ${{ secrets.PHALA_CLOUD_API_KEY }}
           PHALA_CLOUD_CVM_ID: ${{ secrets.PHALA_CLOUD_CVM_ID }}
         run: |
-          echo "🚀 Preparing to restart Phala.io CVM..."
+          echo "🚀 Preparing to restart Phala CVM..."
           REQUIRED=(PHALA_CLOUD_API_KEY PHALA_CLOUD_CVM_ID)
           for var in "${REQUIRED[@]}"; do
             if [ -z "${!var}" ]; then

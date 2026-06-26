@@ -42,7 +42,7 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Build and Deploy to Netlify
+      - name: Deploy to Netlify
         run: |
           npx netlify-cli deploy --prod > /dev/null 2>&1
         env:

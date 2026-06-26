@@ -23097,6 +23097,33 @@ async function authMiddleware(c2, next) {
   if (!isValid) {
     throw new AppError("session_kicked_out", 401);
   }
+  if (!isBearer && payload.exp) {
+    const now = Math.floor(Date.now() / 1e3);
+    if (payload.exp - now < 3 * 24 * 60 * 60) {
+      const newToken = await generateSecureJWT({
+        sessionId: payload.sessionId,
+        userInfo: payload.userInfo
+      }, c2.env.JWT_SECRET, 7 * 24 * 60 * 60);
+      const isSecure = c2.env.ENVIRONMENT !== "development";
+      setCookie(c2, "auth_token", newToken, {
+        httpOnly: true,
+        secure: isSecure,
+        sameSite: "Lax",
+        maxAge: 7 * 24 * 60 * 60,
+        path: "/"
+      });
+      const csrfCookie = getCookie(c2, "csrf_token");
+      if (csrfCookie) {
+        setCookie(c2, "csrf_token", csrfCookie, {
+          httpOnly: false,
+          secure: isSecure,
+          sameSite: "Lax",
+          maxAge: 7 * 24 * 60 * 60,
+          path: "/"
+        });
+      }
+    }
+  }
   c2.set("user", payload.userInfo);
   c2.set("sessionId", sessionId);
   await next();
@@ -47107,7 +47134,7 @@ auth.post("/extension-session", authMiddleware, rateLimit({
     }
   };
   const { generateSecureJWT: generateSecureJWT2 } = await Promise.resolve().then(() => (init_crypto(), crypto_exports));
-  const token = await generateSecureJWT2(payload, c2.env.JWT_SECRET || "");
+  const token = await generateSecureJWT2(payload, c2.env.JWT_SECRET || "", 365 * 24 * 60 * 60);
   return c2.json({
     success: true,
     token
@@ -47338,7 +47365,7 @@ var VaultService = class {
     });
     const { createdBy: _c, updatedBy: _u, ...restCreated } = created;
     return {
-      ...created,
+      ...restCreated,
       secret: (await this.wrapZeroKnowledgeSecret(userId, encryptedSecret)).secret
     };
   }

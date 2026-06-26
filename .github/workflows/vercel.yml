@@ -21,7 +21,6 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-          cache: 'npm'
 
       - name: Check Required Secrets
         run: |
@@ -40,12 +39,9 @@ jobs:
       - name: Inject Commit Hash & Platform
         run: node scripts/inject_vars.js --platform=vercel
 
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-
-      - name: Build and Deploy to Vercel
+      - name: Deploy to Vercel
         run: |
-          vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} > /dev/null 2>&1
+          npx -y vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} > /dev/null 2>&1
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
