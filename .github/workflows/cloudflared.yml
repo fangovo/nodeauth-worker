@@ -1,0 +1,47 @@
+name: "Build and push Cloudflared Docker Image"
+
+on:
+  workflow_run:
+    workflows: ["Build and push Docker images"]
+    types:
+      - completed
+  workflow_dispatch:
+
+jobs:
+  cloudflared:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    name: "Build Cloudflared Docker Image"
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Inject Commit Hash & Platform
+      run: node scripts/inject_vars.js --platform=docker
+
+    - name: Login to DockerHub
+      uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+    - name: Push Cloudflared image to Docker hub
+      uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+      with:
+        context: .
+        file: Dockerfile.cloudflared
+        push: true
+        platforms: linux/amd64,linux/arm64
+        tags: ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:cloudflared
+        build-args: |
+          BASE_IMAGE=${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:latest
+        cache-from: type=gha,scope=cloudflared
+        cache-to: type=gha,mode=max,scope=cloudflared
