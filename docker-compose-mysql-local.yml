@@ -45,6 +45,12 @@ services:
       # [必填] 允许登录系统的用户邮箱、Telegram ID、Web3 钱包地址，多个用逗号隔开, 支持 aes,base64,hex32 类型
       - OAUTH_ALLOWED_USERS=your_email@example.com,your_telegram_id,your_web3_wallet_address
       
+      # =========== 内网穿透配置 ===========
+      # [可选] Cloudflare Tunnel 令牌
+      # 配置此项后，容器将自动启动内置的 cloudflared 内网穿透服务
+      # 建议使用 `https://tools.nodeauth.io` 对明文进行编码，支持 aes,base64,hex32 类型
+      # - CLOUDFLARE_TUNNEL_TOKEN=
+      
       # =========== 日志级别 ===========  
       # [可选] 日志级别: debug, info, warn, error.
       - LOG_LEVEL=info

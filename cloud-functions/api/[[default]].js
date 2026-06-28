@@ -325,7 +325,8 @@ async function getDerivedEncryptionKey(password) {
     return derivedKeyCache.get(password);
   }
   const encoder6 = new TextEncoder();
-  const license = (typeof process !== "undefined" ? process.env.NODEAUTH_LICENSE : "") || "";
+  const rawLicense = (typeof process !== "undefined" ? process.env.NODEAUTH_LICENSE : "") || "";
+  const license = rawLicense.trim();
   const licenseFeature = await getDerivedLicenseKey(password, license);
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
@@ -359,8 +360,14 @@ async function initializeEnv(env) {
     env.JWT_SECRET = rootKey;
     if (typeof process !== "undefined") process.env.JWT_SECRET = rootKey;
   }
+  const rawLicense = env.NODEAUTH_LICENSE || (typeof process !== "undefined" ? process.env.NODEAUTH_LICENSE : "");
+  if (rawLicense && typeof rawLicense === "string") {
+    const normalizedLicense = await normalizeSecret(rawLicense, rootKey);
+    env.NODEAUTH_LICENSE = normalizedLicense;
+    if (typeof process !== "undefined") process.env.NODEAUTH_LICENSE = normalizedLicense;
+  }
   for (const key in env) {
-    if (key === "JWT_SECRET" || key === "ASSETS") continue;
+    if (key === "JWT_SECRET" || key === "ASSETS" || key === "NODEAUTH_LICENSE") continue;
     if (typeof env[key] === "string") {
       try {
         const rawValue = env[key].trim();
@@ -74600,6 +74607,9 @@ auth.get("/sessions", authMiddleware, async (c) => {
   return c.json({ success: true, sessions });
 });
 auth.delete("/sessions", authMiddleware, async (c) => {
+  if (c.env.OAUTH_ALLOW_ALL === "2") {
+    throw new AppError("Action forbidden in demo mode", 403);
+  }
   const user = c.get("user");
   const currentSessionId = c.get("sessionId");
   const service = getSessionService(c);
@@ -74610,6 +74620,9 @@ auth.delete("/sessions", authMiddleware, async (c) => {
   return new Response(null, { status: 204 });
 });
 auth.delete("/sessions/:id", authMiddleware, async (c) => {
+  if (c.env.OAUTH_ALLOW_ALL === "2") {
+    throw new AppError("Action forbidden in demo mode", 403);
+  }
   const user = c.get("user");
   const targetSessionId = c.req.param("id");
   const currentSessionId = c.get("sessionId");
