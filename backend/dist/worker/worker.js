@@ -47190,7 +47190,9 @@ async function batchInsertVaultItems(dbClient, items, key, createdBy, startSortO
       algorithm: (item.type === "steam" ? "SHA1" : item.algorithm || "SHA1").toUpperCase().replace(/-/g, ""),
       digits: item.digits || 6,
       period: item.period || 30,
-      sortOrder: startSortOrder > 0 ? startSortOrder + (items.length - index2) : 0,
+      counter: item.counter ?? 0,
+      sortOrder: item.sortOrder ?? item.sort_order ?? (startSortOrder > 0 ? startSortOrder + (items.length - index2) : 0),
+      deletedAt: item.deletedAt ?? item.deleted_at ?? null,
       createdAt: Date.now(),
       // camelCase 匹配 Drizzle schema
       createdBy
@@ -47691,8 +47693,8 @@ var VaultService = class {
             period: acc.period,
             counter: acc.counter,
             sortOrder: startSortForRevive + (accountsToRevive.length - idx),
-            deletedAt: null,
-            // 👈 显式复活标记
+            deletedAt: acc.deletedAt ?? acc.deleted_at ?? null,
+            // 恢复备份时保持原有的删除状态，或者显式复活
             updatedBy: userId
           }
         };
@@ -57212,11 +57214,29 @@ var GithubProvider = class {
       if (!Array.isArray(data)) {
         return [];
       }
-      return data.filter((item) => item.type === "file").map((item) => ({
-        filename: item.name,
-        size: item.size,
-        lastModified: (/* @__PURE__ */ new Date()).toISOString()
-      }));
+      return data.filter((item) => item.type === "file").map((item) => {
+        let lastModified = (/* @__PURE__ */ new Date()).toISOString();
+        const match2 = item.name.match(/nodeauth-backup-(?:auto|manual|export)-(\d{4}-\d{2}-\d{2}T[\d-]+Z)\.json/);
+        if (match2 && match2[1]) {
+          const parts = match2[1].split("T");
+          if (parts.length === 2) {
+            const datePart = parts[0];
+            const timeTokens = parts[1].replace("Z", "").split("-");
+            if (timeTokens.length >= 3) {
+              const timePart = `${timeTokens[0]}:${timeTokens[1]}:${timeTokens[2]}${timeTokens[3] ? "." + timeTokens[3] : ""}Z`;
+              const reconstructed = `${datePart}T${timePart}`;
+              if (!isNaN(new Date(reconstructed).getTime())) {
+                lastModified = new Date(reconstructed).toISOString();
+              }
+            }
+          }
+        }
+        return {
+          filename: item.name,
+          size: item.size,
+          lastModified
+        };
+      });
     } catch (e2) {
       if (e2.statusCode === 404 || e2.status === 404) return [];
       throw e2;
@@ -57340,7 +57360,12 @@ var BackupService = class {
         category: row.category,
         secret,
         digits: row.digits,
-        period: row.period
+        period: row.period,
+        type: row.type,
+        algorithm: row.algorithm,
+        counter: row.counter,
+        sort_order: row.sortOrder,
+        deleted_at: row.deletedAt
       };
     }))).filter(Boolean);
     const exportPayload = {
