@@ -12,6 +12,9 @@ jobs:
     name: "Deploy to Deno Deploy"
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: platforms/deno
 
     steps:
       - name: Checkout

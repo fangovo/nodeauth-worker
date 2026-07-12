@@ -47,6 +47,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 # Environment variables
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV DOCKER_BUILD=true
 
 # Copy cloudflared from builder
 COPY --from=builder /usr/local/bin/cloudflared /usr/local/bin/cloudflared

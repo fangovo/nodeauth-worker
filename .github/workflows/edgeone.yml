@@ -12,6 +12,9 @@ jobs:
     name: "Deploy to EdgeOne"
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: platforms/edgeone
 
     steps:
       - name: Checkout
