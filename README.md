@@ -22,13 +22,15 @@
 
 ## 📖 项目部署
 
-- [在线演示](https://demo.nodeauth.io)
 - [部署文档](https://wiki.nodeauth.io)
+- [购买授权码](https://license.nodeauth.io/buy)
 - [付费代部署 ($9.99)](https://t.me/NodeAuthBot)
 
 ---
 
-## 📖 项目预览
+## 📖 项目展示
+
+- [在线演示](https://demo.nodeauth.io)
 
 <img height="222" src="https://github.com/user-attachments/assets/20ca3791-841b-4a89-bfe4-ffacfcc7ee9a" />
 
@@ -62,5 +64,11 @@
 
 ---
 
+## 项目交流
+[Telegram 群组](https://t.me/NodeauthGroup)
+
+---
+
 ## 📄 开源协议
 本项目基于 [GNU AGPL v3](LICENSE) 协议开源。作为一款涉及 2FA 安全与网络服务的软件，我们坚持维护开源社区的公平性：如果您在服务器上运行本项目的修改版本并向公众提供服务，您必须向用户开放您的源代码。
+

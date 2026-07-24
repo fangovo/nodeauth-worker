@@ -321,7 +321,7 @@ async function generatePKCE() {
 async function getFastKey(secret) {
   const encoder6 = new TextEncoder();
   const keyBuffer = await crypto.subtle.digest("SHA-256", encoder6.encode(await normalizeSecret(secret)));
-  return crypto.subtle.importKey("raw", keyBuffer, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", keyBuffer, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
 async function encryptBackupFile(data, password) {
   const salt = crypto.getRandomValues(new Uint8Array(CRYPTO_CONFIG.SALT_LEN));
@@ -476,7 +476,7 @@ __export(request_exports, {
   getClientIp: () => getClientIp,
   getRealRequestUrl: () => getRealRequestUrl
 });
-var getRealRequestUrl, getClientIp;
+var getRealRequestUrl, cleanAndNormalizeIp, isValidIpString, isPublicIpAddress, getClientIp;
 var init_request = __esm({
   "src/shared/utils/request.ts"() {
     "use strict";
@@ -500,16 +500,91 @@ var init_request = __esm({
       }
       return requestUrl.toString();
     };
+    cleanAndNormalizeIp = (rawIp) => {
+      if (!rawIp || typeof rawIp !== "string") return null;
+      let ip = rawIp.trim();
+      if (!ip || ip.toLowerCase() === "unknown" || ip.toLowerCase() === "null") return null;
+      ip = ip.replace(/^::ffff:/i, "");
+      if (ip.startsWith("[")) {
+        const match2 = ip.match(/^\[([a-fA-F0-9:]+)\](?::\d+)?$/);
+        if (match2 && match2[1]) {
+          ip = match2[1];
+        }
+      } else if (ip.includes(".") && ip.includes(":")) {
+        ip = ip.split(":")[0].trim();
+      }
+      return isValidIpString(ip) ? ip : null;
+    };
+    isValidIpString = (ip) => {
+      const ipv4Regex = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
+      if (ipv4Regex.test(ip)) return true;
+      const ipv6Regex = /^[a-fA-F0-9:]+$/;
+      return ip.includes(":") && ipv6Regex.test(ip) && ip.length <= 45;
+    };
+    isPublicIpAddress = (ip) => {
+      if (ip === "127.0.0.1" || ip === "::1" || ip.startsWith("0.")) return false;
+      if (/^10\./.test(ip)) return false;
+      if (/^192\.168\./.test(ip)) return false;
+      if (/^172\.(?:1[6-9]|2\d|3[0-1])\./.test(ip)) return false;
+      if (/^169\.254\./.test(ip)) return false;
+      if (/^fc00:/i.test(ip) || /^fe80:/i.test(ip)) return false;
+      return true;
+    };
     getClientIp = (c2) => {
-      const cfIp = c2.req.header("CF-Connecting-IP");
-      const eoIp = c2.req.header("eo-connecting-ip");
-      const xRealIp = c2.req.header("x-real-ip");
-      const forwardedFor = c2.req.header("x-forwarded-for");
-      if (cfIp) return cfIp;
-      if (eoIp) return eoIp;
-      if (xRealIp) return xRealIp;
-      if (forwardedFor) {
-        return forwardedFor.split(",")[0].trim();
+      const authoritativeHeaders = [
+        "cf-connecting-ip",
+        // Cloudflare
+        "fastly-client-ip",
+        // Fastly CDN & Deno Deploy 边缘架构
+        "eo-connecting-ip",
+        // 腾讯云 EdgeOne
+        "true-client-ip",
+        // Cloudflare Enterprise / Akamai / 阿里云边缘
+        "ali-cdn-real-ip",
+        // 阿里云 CDN
+        "x-aliyun-esa-client-ip",
+        // 阿里云 ESA
+        "esa-client-ip",
+        // 阿里云 ESA 备用
+        "x-deno-client-ip",
+        // Deno Deploy 扩展
+        "x-wasmer-client-ip",
+        // Wasmer Edge 扩展
+        "wasmer-client-ip",
+        // Wasmer Edge 备用
+        "x-spin-client-ip",
+        // Fermyon Spin Wasm 平台扩展
+        "spin-client-ip",
+        // Fermyon Spin Wasm 平台备用
+        "x-client-ip",
+        // AWS / Apache 常代
+        "x-real-ip"
+        // Nginx / 通用反向代理
+      ];
+      for (const headerName of authoritativeHeaders) {
+        const val = c2.req?.header ? c2.req.header(headerName) : void 0;
+        if (val) {
+          const cleaned = cleanAndNormalizeIp(val);
+          if (cleaned) return cleaned;
+        }
+      }
+      const forwardedFor = c2.req?.header ? c2.req.header("x-forwarded-for") : void 0;
+      if (forwardedFor && typeof forwardedFor === "string") {
+        const parsedIps = forwardedFor.split(",").map((part) => cleanAndNormalizeIp(part)).filter((ip) => ip !== null);
+        const publicIp = parsedIps.find((ip) => isPublicIpAddress(ip));
+        if (publicIp) return publicIp;
+        if (parsedIps.length > 0) return parsedIps[0];
+      }
+      if (c2.env) {
+        const envIpCandidate = c2.env.REMOTE_ADDR || c2.env.remoteAddr || c2.env.clientIp || c2.env.CF_CONNECTING_IP;
+        const cleanedEnvIp = cleanAndNormalizeIp(typeof envIpCandidate === "object" ? envIpCandidate.hostname || JSON.stringify(envIpCandidate) : envIpCandidate);
+        if (cleanedEnvIp) return cleanedEnvIp;
+      }
+      try {
+        const connRemote = c2.req?.raw?.connInfo?.remote?.address || c2.req?.raw?.remoteAddr;
+        const cleanedConn = cleanAndNormalizeIp(typeof connRemote === "object" ? connRemote.hostname || JSON.stringify(connRemote) : connRemote);
+        if (cleanedConn && typeof cleanedConn === "string") return cleanedConn;
+      } catch {
       }
       return "unknown";
     };
@@ -67120,8 +67195,15 @@ vault5.post("/import", rateLimit({
   const user = c2.get("user");
   const service = getService2(c2);
   const { content, type, password } = await c2.req.json();
-  const result = await service.importAccounts(user.email || user.id, type, content, password);
-  return c2.json({ success: true, ...result });
+  try {
+    const result = await service.importAccounts(user.email || user.id, type, content, password);
+    return c2.json({ success: true, ...result });
+  } catch (e2) {
+    if (e2?.name === "NotSupportedError" || e2?.message?.includes("algorithm") || e2?.message?.includes("not yet supported")) {
+      return c2.json({ success: false, error: "import_crypto_not_supported", message: "encrypted_import_requires_pbkdf2_not_available_on_this_platform" }, 422);
+    }
+    throw e2;
+  }
 });
 vault5.post("/import/blizzard-net", rateLimit({
   windowMs: 60 * 1e3,
@@ -67138,30 +67220,6 @@ vault5.post("/import/blizzard-net", rateLimit({
   } catch (e2) {
     return c2.json({ success: false, error: e2.message }, e2.statusCode || 500);
   }
-});
-vault5.post("/add-from-uri", async (c2) => {
-  const user = c2.get("user");
-  const { uri, category } = await c2.req.json();
-  if (!uri || typeof uri !== "string") {
-    return c2.json({ success: false, error: "URI is required" }, 400);
-  }
-  const parsed = parseOTPAuthURI(uri);
-  if (!parsed) {
-    return c2.json({ success: false, error: "\u65E0\u6548\u7684 OTP URI \u683C\u5F0F" }, 400);
-  }
-  const service = getService2(c2);
-  const item = await service.createAccount(user.email || user.id, {
-    service: parsed.issuer,
-    account: parsed.account,
-    secret: parsed.secret,
-    algorithm: parsed.algorithm,
-    digits: parsed.digits,
-    period: parsed.period,
-    type: parsed.type,
-    counter: parsed.counter,
-    category: category || "\u624B\u673A\u626B\u7801"
-  });
-  return c2.json({ success: true, item });
 });
 vault5.post("/sync", async (c2) => {
   const user = c2.get("user");
@@ -84220,9 +84278,21 @@ var deno_default = {
     if (assetResponse.status !== 404) {
       return assetResponse;
     }
+    let extractedRemoteAddr;
+    try {
+      const candidateInfo = env?.remoteAddr || ctx?.remoteAddr || req?.connInfo?.remote?.address;
+      if (candidateInfo && typeof candidateInfo === "object" && candidateInfo.hostname) {
+        extractedRemoteAddr = candidateInfo.hostname;
+      } else if (typeof candidateInfo === "string") {
+        extractedRemoteAddr = candidateInfo;
+      }
+    } catch {
+    }
     const mergedEnv = {
       ...typeof Deno !== "undefined" ? Deno.env.toObject() : {},
       ...env || {},
+      remoteAddr: extractedRemoteAddr || env?.remoteAddr,
+      clientIp: extractedRemoteAddr,
       DB: globalDb,
       ASSETS: { fetch: (r2) => nodeAssetsFetch(r2, { frontendDistPath }) }
     };

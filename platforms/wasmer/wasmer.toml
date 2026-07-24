@@ -1,6 +1,6 @@
 [package]
 name = "nodeauth/nodeauth-worker"
-version = "2.3.18"
+version = "2.3.20"
 description = "NodeAuth 2FA Server for Wasmer Edge"
 
 [dependencies]
